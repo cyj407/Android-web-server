@@ -1,14 +1,19 @@
 <!DOCTYPE HTML>
 <html>
     <head>
+        <link href="htts://vjs.zencdn.net/5.19/video-js.min.css" rel="stylesheet">
+        <script src="htts://vjs.zencdn.net/5.19/video.min.js"></script>
         <script type="text/javascript">
             var ws = null;
             var downloadFile = "";
+            var serverClosed = false;
             function WebSocketTest() {
                 if("WebSocket" in window) {
 
-                    if(ws === null) {
-                        ws = new WebSocket('ws://192.168.137.184:3000');
+                    if(ws === null || serverClosed === true) {
+                        serverClose = false;
+
+                        ws = new WebSocket('ws://192.168.137.165:3000');
                         ws.binaryData = "blob";
 
                         ws.onopen = function() {
@@ -41,6 +46,26 @@
                                     img_DOM.href = rec_url;
                                     img_DOM.src = rec_url;
                                 }
+                                else if (downloadFile.indexOf('.mp4') !== -1 ||
+                                        downloadFile.indexOf('.webm') !== -1 ||
+                                        downloadFile.indexOf('.ogv') !== -1) {
+
+                                    /* hide the previous picture */
+                                    let img_DOM = document.getElementById("rec_img");
+                                    if(img_DOM !== null) {
+                                        img_DOM.style.cssText = 'display: none;';
+                                    }
+
+                                    let player = document.getElementById("my-player");
+                                    let video = document.getElementById("rec_video");
+                                    if(video === null) {
+                                        video = document.createElement("source");
+                                        video.id = "rec_video";
+                                        player.appendChild(video);
+                                    }
+                                    video.src = rec_url;
+                                    video.type = "video/mp4";
+                                }
                                 else {
                                     let img_DOM = document.getElementById("rec_img");
                                     if(img_DOM !== null) {
@@ -66,6 +91,7 @@
                         ws.onclose = function() {
                             ws.send("exit");
                             alert("connection closed.");
+                            serverClosed = true;
                         };
                     }
                     else {
@@ -138,7 +164,23 @@
         <div id="sse">
             <a href="javascript:WebSocketTest()">Execute WebSocket</a>
         </div>
-        <img src="Stonehenge.jpg"/>
+
+        <video autoplay id="my-player" class="video-js" controls preload="auto"
+                poster="Stonehenge.jpg" width="800" height="640"
+                data-setup='{}'>
+            <!--<source src="https://vjs.zencdn.net/v/oceans.mp4" type="video/mp4"/>-->
+            <!--<source src="https://vjs.zencdn.net/v/oceans.webm" type="video/webm"/>-->
+            <!--<source src="https://vjs.zencdn.net/v/oceans.ogv" type="video/ogg"/>-->
+            <p class="vjs-no-js">
+                To view this video please enable JavaScript, and consider upgrading to a
+                web browser that
+                <a href="https://videojs.com/html5-video-support/" target="_blank">
+                    supports HTML5 video
+                </a>
+            </p>
+        </video>
+
+        <!--<img src="Stonehenge.jpg"/>-->
         <br>
         <input type="file" id="uploadFile"/>
         <button ID="btn_send" onclick="sendFile()">Send File</button>

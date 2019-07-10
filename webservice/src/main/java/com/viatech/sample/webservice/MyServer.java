@@ -1,4 +1,4 @@
-package com.example.myapplication.WebServer;
+package com.viatech.sample.webservice;
 
 import android.content.Context;
 import android.util.Log;
@@ -28,7 +28,7 @@ public class MyServer extends NanoHTTPD {
 
         // return the path part of the URL
         String uri = session.getUri();
-        Log.e("serve", "####MyWebServer:"+ uri);
+        Log.e("MyServer", "load: "+ uri);
         String filename = uri.substring(1);
 
         if(uri.equals("/")) {
@@ -84,15 +84,15 @@ public class MyServer extends NanoHTTPD {
                 e.printStackTrace();
             }
 
-            return newFixedLengthResponse(Response.Status.OK, mimetype, response);
+            return NanoHTTPD.newFixedLengthResponse(Response.Status.OK, mimetype, response);
         }
         else {
             InputStream isr;
             try {
                 isr = _mainContext.getAssets().open(filename);
-                return newFixedLengthResponse(Response.Status.OK, mimetype, isr, isr.available());
+                return NanoHTTPD.newFixedLengthResponse(Response.Status.OK, mimetype, isr, isr.available());
             } catch (IOException e) {
-                return newFixedLengthResponse(Response.Status.OK, mimetype, "");
+                return NanoHTTPD.newFixedLengthResponse(Response.Status.OK, mimetype, "");
             }
         }
 

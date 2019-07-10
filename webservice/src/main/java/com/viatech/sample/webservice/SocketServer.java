@@ -1,20 +1,14 @@
-package com.example.myapplication.WebServer;
+package com.viatech.sample.webservice;
 
-import android.app.ExpandableListActivity;
-import android.os.Environment;
 import android.util.Log;
-import android.util.Patterns;
-
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
-import org.java_websocket.util.Base64;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -60,8 +54,8 @@ public class SocketServer extends WebSocketServer {
                 while((_byte = fis.read()) != -1) {
                     buf.put((byte) _byte);
                 }
-                buf.flip();     // set position to 0
-                conn.send(buf);
+                buf.flip();         // set position to 0
+                conn.send(buf);     // Synchronize
             }catch (Exception e) {
                 e.printStackTrace();
                 conn.send("Server sent failed.");
