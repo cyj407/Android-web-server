@@ -9,9 +9,8 @@ import java.net.InetSocketAddress;
 
 public class ServerService extends Service {
 
-    private final static String ip = "192.168.137.165";
+    private final static String ip = "192.168.137.156";
     private final static int port = 3000;
-    public static boolean resume = false;
 
     // web server -> used to build Android Web Server
     private MyServer myWebServer;
@@ -23,27 +22,28 @@ public class ServerService extends Service {
     public void onCreate() {
         super.onCreate();
         Log.e("MyServerService", "onCreate()");
-
-        try {
-            myWebServer = new MyServer(this);
-            myWebSocketServer = new SocketServer(new InetSocketAddress(ip, port));
-        } catch(Exception e) {
-            Log.e("MainActivity.onCreate", "Exception");
-        }
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.e("MyServerService", "onStartCommand()");
 
-        if(resume) {
-            myWebSocketServer.start();
+        if(myWebServer == null) {
+            try {
+                myWebServer = new MyServer(this);
+                myWebSocketServer = new SocketServer(new InetSocketAddress(ip, port));
 
-            // handle the accidental close
-            myWebSocketServer.setReuseAddr(true);
-            resume = false;
+                myWebSocketServer.start();
+
+                // handle the accidental close
+                myWebSocketServer.setReuseAddr(true);
+
+            } catch (Exception e) {
+                Log.e("MainActivity.onCreate", "Exception");
+            }
         }
-        return START_REDELIVER_INTENT;
+
+        return START_STICKY;
     }
 
     @Override

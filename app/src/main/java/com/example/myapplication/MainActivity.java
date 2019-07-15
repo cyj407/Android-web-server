@@ -15,16 +15,8 @@ public class MainActivity extends AppCompatActivity {
     public void onResume() {
         super.onResume();
         Log.e("MainActivity.onResume", "WebServer resumes.");
-        ServerService.resume = true;
         Intent intent = new Intent(this, ServerService.class);
         startService(intent);
-//        try {
-//            myWebServer = new MyServer(this);
-//            Log.e("MainActivity.onResume", "WebServer resumes.");
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//            Log.e("MainActivity.onResume", "WebServer start failed" + e.getMessage());
-//        }
     }
 
     @Override
@@ -34,18 +26,6 @@ public class MainActivity extends AppCompatActivity {
         stopService(intent);
         Log.e("MainActivity.onPause", "WebServer pauses.");
 
-//        try {
-//            myWebSocketServer.stop();
-//        }
-//        catch (Exception e) {
-//            Log.e("MainActivity.OnPause", "WebServer pauses.");
-//        }
-//
-//        if(myWebServer != null) {
-//            myWebServer.closeAllConnections();
-//            myWebServer = null;
-//            Log.e("MainActivity.onPause", "app pause, so web server close");
-//        }
     }
 
     @Override
