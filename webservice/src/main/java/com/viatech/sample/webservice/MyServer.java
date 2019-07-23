@@ -76,6 +76,7 @@ public class MyServer extends NanoHTTPD {
 
                 while ((line = reader.readLine()) != null) {
                     response += line;
+                    response += "\n";
                 }
 
                 reader.close();

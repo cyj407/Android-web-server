@@ -9,8 +9,11 @@ import java.net.InetSocketAddress;
 
 public class ServerService extends Service {
 
-    private final static String ip = "192.168.137.156";
-    private final static int port = 3000;
+//    private final static String ip = "127.0.0.1";
+//    private final static int port = 9000;
+
+    private final static String ip = "192.168.137.216";
+    private final static int port = 9000;
 
     // web server -> used to build Android Web Server
     private MyServer myWebServer;

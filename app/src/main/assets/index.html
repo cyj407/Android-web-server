@@ -16,19 +16,21 @@
 
     MyBlobBuilder.prototype.getBlob = function() {
         if (!this.blob) {
-            this.blob = new Blob(this.parts, { type: "text/plain" });
+            this.blob = new Blob(this.parts, {
+                type: "text/plain"
+            });
         }
         return this.blob;
     };
     var myBlobBuilder = undefined;
 
     function WebSocketTest() {
-        if("WebSocket" in window) {
+        if ("WebSocket" in window) {
 
-            if(ws === null || serverClosed === true) {
+            if (ws === null || serverClosed === true) {
                 serverClosed = false;
 
-                ws = new WebSocket('ws://192.168.137.156:3000');
+                ws = new WebSocket('ws://192.168.137.87:3000');
                 ws.binaryData = "blob";
 
                 ws.onopen = function() {
@@ -38,26 +40,23 @@
                 ws.onmessage = function(event) {
                     let rec = event.data;
 
-                    if(rec instanceof Blob) {
-                        if(fileStart) {
+                    if (rec instanceof Blob) {
+                        if (fileStart) {
                             myBlobBuilder.append(rec);
                         }
-                    }
-                    else if(typeof rec === "string"){
-                        if(rec === "File starts.") {
+                    } else if (typeof rec === "string") {
+                        if (rec === "File starts.") {
                             fileStart = true;
                             fileEnd = false;
                             myBlobBuilder = new MyBlobBuilder();
-                        }
-                        else if(rec === "File ends.") {
+                        } else if (rec === "File ends.") {
                             fileStart = false;
                             fileEnd = true;
 
                             let bb = myBlobBuilder.getBlob();
                             downloadAndShow(bb);
                             myBlobBuilder = undefined;
-                        }
-                        else if(rec.substr(0, 7) === "option:") {
+                        } else if (rec.substr(0, 7) === "option:") {
 
                             /* trim the string */
                             rec = rec.replace("option:[", "");
@@ -67,9 +66,9 @@
 
                             /* remove original datalist */
                             let optNum = list_DOM.options.length;
-                            for(let i = 0;i < optNum; ++i) {
+                            for (let i = 0; i < optNum; ++i) {
                                 let opt = document.getElementById('fileOption');
-                                if(opt) {
+                                if (opt) {
                                     opt.parentNode.removeChild(opt);
                                 }
                             }
@@ -77,14 +76,13 @@
                             /* append new datalist */
                             let optionArray = rec.split(", ");
                             let initOptNum = list_DOM.options.length;
-                            for(let i = 0;i < optionArray.length; ++i) {
+                            for (let i = 0; i < optionArray.length; ++i) {
                                 let opt_DOM = document.createElement('option');
                                 opt_DOM.value = optionArray[i];
                                 opt_DOM.id = "fileOption";
                                 list_DOM.appendChild(opt_DOM);
                             }
-                        }
-                        else {
+                        } else {
                             alert(rec);
                         }
                     }
@@ -95,12 +93,10 @@
                     alert("connection closed.");
                     serverClosed = true;
                 };
-            }
-            else {
+            } else {
                 alert("connection exists.");
             }
-        }
-        else {
+        } else {
             alert("Your browser is not supported.");
         }
     }
@@ -108,19 +104,19 @@
     function downloadAndShow(rec) {
 
         /* handle the received file */
-        if(rec instanceof Blob) {
+        if (rec instanceof Blob) {
             let _span = document.getElementById('rec_container');
-            _span.innerHTML = "Receive file: "+ downloadFile + "<br>";
+            _span.innerHTML = "Receive file: " + downloadFile + "<br>";
 
             /* create download url of the file */
             let rec_url = window.URL.createObjectURL(rec);
 
             /* display image */
-            if(downloadFile.indexOf('.jpg') !== -1 ||
+            if (downloadFile.indexOf('.jpg') !== -1 ||
                 downloadFile.indexOf('.png') !== -1) {
 
                 let img_DOM = document.getElementById("rec_img");
-                if(img_DOM === null) {
+                if (img_DOM === null) {
                     img_DOM = document.createElement("img");
                     img_DOM.id = "rec_img";
                     /*_span.innerHTML = "Receive image: ";*/
@@ -129,20 +125,19 @@
                 img_DOM.style.cssText = '';
                 img_DOM.href = rec_url;
                 img_DOM.src = rec_url;
-            }
-            else if (downloadFile.indexOf('.mp4') !== -1 ||
-                    downloadFile.indexOf('.webm') !== -1 ||
-                    downloadFile.indexOf('.ogv') !== -1) {
+            } else if (downloadFile.indexOf('.mp4') !== -1 ||
+                downloadFile.indexOf('.webm') !== -1 ||
+                downloadFile.indexOf('.ogv') !== -1) {
 
                 /* hide the previous picture */
                 let img_DOM = document.getElementById("rec_img");
-                if(img_DOM !== null) {
+                if (img_DOM !== null) {
                     img_DOM.style.cssText = 'display: none;';
                 }
 
                 let player = document.getElementById("my-player");
                 let video = document.getElementById("rec_video");
-                if(video === null) {
+                if (video === null) {
                     video = document.createElement("source");
                     video.id = "rec_video";
                     player.appendChild(video);
@@ -151,10 +146,9 @@
                 video.type = "video/mp4";
                 player.load();
                 player.play();
-            }
-            else {
+            } else {
                 let img_DOM = document.getElementById("rec_img");
-                if(img_DOM !== null) {
+                if (img_DOM !== null) {
                     img_DOM.style.cssText = 'display: none;';
                 }
             }
@@ -172,20 +166,20 @@
     }
 
     function checkWebSocket() {
-       if(ws === null || serverClosed === true) {
+        if (ws === null || serverClosed === true) {
             alert("Execute WebSocket first.");
             return false;
-       }
-       return true;
+        }
+        return true;
     }
 
     function sendFile() {
-        if(!checkWebSocket()) {
+        if (!checkWebSocket()) {
             return;
         }
-        if(ws.readyState === WebSocket.OPEN) {
+        if (ws.readyState === WebSocket.OPEN) {
 
-            if(document.getElementById('uploadFile').files.length === 0) {
+            if (document.getElementById('uploadFile').files.length === 0) {
                 alert("Select a file to send.");
                 return;
             }
@@ -209,52 +203,82 @@
             };
             reader.readAsArrayBuffer(file);
             ws.send(file);
-        }
-        else {
+        } else {
             alert("webSocket is not ready yet.");
         }
 
     }
 
     function requestFile() {
-        if(!checkWebSocket()) {
+        if (!checkWebSocket()) {
             return;
         }
         let reqPath = document.getElementById('filePath').value;
-        downloadFile = reqPath.substring(reqPath.lastIndexOf('/')+1);
+        downloadFile = reqPath.substring(reqPath.lastIndexOf('/') + 1);
         ws.send("client request: " + reqPath);
     }
 </script>
 <html>
-    <head>
-        <title>Hello World</title>
-    </head>
-    <body>
-        <h1>Hello World</h1>
-        <div id="sse">
-            <a href="javascript:WebSocketTest()">Execute WebSocket</a>
-        </div>
-        <video autoplay id="my-player" class="video-js" controls preload="auto"
-                poster="Stonehenge.jpg" width="800" height="640"
-                data-setup='{}'>
-            <p class="vjs-no-js">To view this video please enable JavaScript, and consider upgrading to a web browser that
-                <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
-            </p>
-        </video>
-        <br>
-        <input type="file" id="uploadFile"/>
-        <button ID="btn_send" onclick="sendFile()">Send File</button>
-        <br>
-        <br>
-        <br>Input File path:
-        <input id="filePath" type="text" list="optionList">
-        <datalist id="optionList">
-        </datalist>
-        <button ID="btn_request" onclick="requestFile()">Get File From Server</button>
-        <br>
-        <br>
-        <span id="rec_container"></span>
-        <a id="download" style="display: none">Download</a>
-    </body>
+
+<head>
+    <title>Hello World</title>
+    <style type="text/css" media="screen">
+        video.rotate180 {
+            width: 100%;
+            height: 100%;
+            transform: rotateX(180deg);
+            -moz-transform: rotateX(180deg);
+            -webkit-transform: rotateX(180deg);
+            -o-transform: rotateX(180deg);
+            -ms-transform: rotateX(180deg);
+        }
+    </style>
+</head>
+
+<body>
+<h1>Hello World</h1>
+<h2>h.264 To fmp4</h2>
+<script type="text/javascript" src="dist/wfs.js"></script>
+<div class="wfsjs">
+    <video id="video1" autoplay class="rotate180"></video>
+    <div class="ratio"></div>
+</div>
+
+<script>
+        var ip = '192.168.137.216';
+        var port = '9000';
+
+        window.onload = function() {
+            if (Wfs.isSupported()) {
+                var video1 = document.getElementById("video1");
+                wfs = new Wfs();
+                wfs.attachMedia(video1, ip, port);
+            }
+        };
+    </script>
+
+<!--<div id="sse">-->
+    <!--<a href="javascript:WebSocketTest()">Execute WebSocket</a>-->
+<!--</div>-->
+<!--<video autoplay id="my-player" class="video-js" controls preload="auto" poster="Stonehenge.jpg" width="800" height="640" data-setup='{}'>-->
+    <!--<p class="vjs-no-js">To view this video please enable JavaScript, and consider upgrading to a web browser that-->
+        <!--<a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>-->
+    <!--</p>-->
+<!--</video>-->
+<!--<br>-->
+<!--<input type="file" id="uploadFile" />-->
+<!--<button ID="btn_send" onclick="sendFile()">Send File</button>-->
+<!--<br>-->
+<!--<br>-->
+<!--<br>Input File path:-->
+<!--<input id="filePath" type="text" list="optionList">-->
+<!--<datalist id="optionList">-->
+<!--</datalist>-->
+<!--<button ID="btn_request" onclick="requestFile()">Get File From Server</button>-->
+<!--<br>-->
+<!--<br>-->
+<!--<span id="rec_container"></span>-->
+<!--<a id="download" style="display: none">Download</a>-->
+</body>
 
 </html>
