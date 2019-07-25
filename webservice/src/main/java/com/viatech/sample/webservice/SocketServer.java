@@ -1,9 +1,6 @@
 package com.viatech.sample.webservice;
 
 import android.content.Context;
-import android.content.res.AssetFileDescriptor;
-import android.content.res.AssetManager;
-import android.os.Debug;
 import android.os.Environment;
 import android.util.Log;
 import org.java_websocket.WebSocket;
@@ -11,9 +8,7 @@ import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 import org.json.JSONObject;
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -39,19 +34,10 @@ public class SocketServer extends WebSocketServer {
     private String requestFile = "";
     private ArrayList<File> allFileList;
 
-    private BufferedReader sizeReader;
-    private BufferedReader dataReader;
-    private InputStream inputStream;
-
-    private final String file264DataName = "car.h264";
-    private final String file264SizeName = "car.txt";
-
     Thread thread;
     Lock mutex;
 
-    private Timer timer = new Timer();
     private Queue<ByteBuffer> queue;
-
 
 
     public SocketServer(InetSocketAddress addr, Context context) {
@@ -74,130 +60,12 @@ public class SocketServer extends WebSocketServer {
         mutex.unlock();
     }
 
-    public int parseAVCNALu(byte[] array) {
-        int arrayLen = array.length;
-        int i = 0;
-        int state = 0;
-        int count = 0;
-        while (i < arrayLen){
-            byte value = array[i];
-            ++i;
-            switch(state) {
-                case 0:
-                    if(value == 0) {
-                        state = 1;
-                    }
-                    break;
-                case 1:
-                    state = (value == 0) ? 2 : 0;
-                    break;
-                case 2: case 3:
-                    if(value == 0) {
-                        state = 3;
-                    } else if(value == 1 && i < arrayLen) {
-                        int unitType = array[i] & 0x1f;
-                        if(unitType == 7 || unitType == 8) {
-                            count += 1;
-                        }
-                        state = 0;
-                    } else {
-                        state = 0;
-                    }
-                    break;
-            }
-        }
-        return count;
-    }
-
-    public byte[] retrieveFileData(String filename, int offset, long start) {
-
-        byte[] bytes = new byte[offset];
-        try {
-            if(start == 0) {
-                inputStream = context.getAssets().open(filename);
-            }
-            inputStream.read(bytes, 0, offset);
-        } catch (Exception e) {}
-
-        return bytes;
-    }
-
-    public void app264Streaming(WebSocket conn) {
-
-        try {
-            sizeReader = new BufferedReader(new InputStreamReader(context.getAssets().open(file264SizeName)));
-        }catch (IOException e) {
-            Log.e("app264Streaming", "Read files error!");
-            return;
-        }
-
-        MyTimerTask task = new MyTimerTask(conn);
-        timer.schedule(task, 30,30);
-    }
-
-
-    class MyTimerTask extends TimerTask {
-
-        private WebSocket conn;
-        private long fileStart = 0;
-        private boolean flag = true;
-
-        public MyTimerTask(WebSocket conn) {
-            this.conn = conn;
-        }
-
-        @Override
-        public void run() {
-            String line;
-            try {
-                if ((line = sizeReader.readLine()) != null) {
-                    long offs = Long.parseLong(line, 10);
-
-                    int off = (int) offs;
-                    byte[] b = retrieveFileData(file264DataName, off, fileStart);
-
-                    Log.e("RUN()", "size = " + b.length);
-
-                    boolean sendFlag = true;
-                    // --------------------------------------
-                    byte[] smallArray = new byte[off];
-                    System.arraycopy(b, 0, smallArray, 0, off);
-                    if(off < 100) {
-                        int count = parseAVCNALu(smallArray);
-                        if (count > 2) {
-                            sendFlag = false;
-                        }
-                    }
-                    if(sendFlag) {
-                        try {
-                            conn.send(smallArray);
-
-                        // error handling
-                        }catch (IllegalArgumentException iae) {
-                            Log.e("app264Streaming","conn.WriteMessage ERROR!!!");
-                            flag = false;
-                        } catch (NotYetConnectedException nyc) {
-                            Log.e("app264Streaming","conn.WriteMessage ERROR!!!");
-                            flag = false;
-                        }
-                    }
-                    // ---------------------------------------
-                    fileStart += offs;
-                }
-            } catch (IOException ioe) {}
-
-            if(!flag) {
-                timer.cancel();
-            }
-        }
-
-    }
-
-
     @Override
     public void onClose(WebSocket conn, int code, String reason, boolean remote) {
+        thread.interrupt();
         conn.close();
-        Log.e("SocketServer.onClose", "closed " + conn.getRemoteSocketAddress() + " with exit code " + code + " additional info: " + reason);
+        Log.e("SocketServer.onClose", "closed " + conn.getRemoteSocketAddress() +
+                " with exit code " + code + " additional info: " + reason);
     }
 
     @Override
@@ -257,19 +125,22 @@ public class SocketServer extends WebSocketServer {
                         @Override
                         public void run() {
 
-//                            if (queue.isEmpty()) {
-//                                try {
-//                                    thread.sleep(30);
-//                                } catch (Exception e) {
-//                                }
-//                            } else {
-//                                mutex.lock();
-//                                ByteBuffer buf = queue.poll();
-//                                mutex.unlock();
-//                            }
+//                            while(true) {
+//                                if (queue.isEmpty()) {
+//                                    try {
+//                                        thread.sleep(15);
+//                                    } catch (Exception e) {}
+//                                } else {
+//                                    mutex.lock();
+//                                    ByteBuffer buf = queue.poll();
+//                                    mutex.unlock();
 
-                            // TODO: use buf to do streaming
-                            app264Streaming(conn);
+
+                                    StreamingHandler streamingHandler = new StreamingHandler(conn, context);
+//                                    streamingHandler.sendBuffer(buf);
+                                     streamingHandler.app264Streaming();
+//                                }
+//                            }
                         }
                     });
 
@@ -359,6 +230,163 @@ public class SocketServer extends WebSocketServer {
     @Override
     public void onStart() {
         Log.e("SocketServer.onStart", "Server started successfully.");
+    }
+
+}
+
+class StreamingHandler {
+    private WebSocket conn;
+    private Context context;
+    private BufferedReader sizeReader;
+    private InputStream inputStream;
+
+    private Timer timer = new Timer();
+
+    private final String file264DataName = "car.h264";
+    private final String file264SizeName = "car.txt";
+
+    public StreamingHandler(WebSocket conn, Context context) {
+        this.conn = conn;
+        this.context = context;
+    }
+
+    public int parseAVCNALu(byte[] array) {
+        int arrayLen = array.length;
+        int i = 0;
+        int state = 0;
+        int count = 0;
+        while (i < arrayLen){
+            byte value = array[i];
+            ++i;
+            switch(state) {
+                case 0:
+                    if(value == 0) {
+                        state = 1;
+                    }
+                    break;
+                case 1:
+                    state = (value == 0) ? 2 : 0;
+                    break;
+                case 2: case 3:
+                    if(value == 0) {
+                        state = 3;
+                    } else if(value == 1 && i < arrayLen) {
+                        int unitType = array[i] & 0x1f;
+                        if(unitType == 7 || unitType == 8) {
+                            count += 1;
+                        }
+                        state = 0;
+                    } else {
+                        state = 0;
+                    }
+                    break;
+            }
+        }
+        return count;
+    }
+
+    public byte[] retrieveFileData(String filename, int offset, long start) {
+
+        byte[] bytes = new byte[offset];
+        try {
+            if(start == 0) {
+                inputStream = context.getAssets().open(filename);
+            }
+            inputStream.read(bytes, 0, offset);
+        } catch (Exception e) {}
+
+        return bytes;
+    }
+
+    public void app264Streaming() {
+
+        try {
+            sizeReader = new BufferedReader(new InputStreamReader(context.getAssets().open(file264SizeName)));
+        }catch (IOException e) {
+            Log.e("app264Streaming", "Read files error!");
+            return;
+        }
+
+        MyTimerTask task = new MyTimerTask(conn);
+        timer.schedule(task, 30,30);
+    }
+
+    public void sendBuffer(ByteBuffer buf) {
+
+        // ByteBuffer to byte array
+        byte[] b = new byte[buf.remaining()];
+        buf.get(b, 0, b.length);
+
+        boolean sendFlag = true;
+        if(b.length < 100) {
+            int count = parseAVCNALu(b);
+            if (count > 2) {
+                sendFlag = false;
+            }
+        }
+        if(sendFlag) {
+            try {
+                conn.send(b);
+            // error handling
+            }catch (IllegalArgumentException iae) {
+                Log.e("app264Streaming","conn.WriteMessage ERROR!!!");
+            } catch (NotYetConnectedException nyc) {
+                Log.e("app264Streaming","conn.WriteMessage ERROR!!!");
+            }
+        }
+    }
+
+    class MyTimerTask extends TimerTask {
+
+        private WebSocket conn;
+        private long fileStart = 0;
+        private boolean flag = true;
+
+        public MyTimerTask(WebSocket conn) {
+            this.conn = conn;
+        }
+
+        @Override
+        public void run() {
+            String line;
+            try {
+                if ((line = sizeReader.readLine()) != null) {
+                    long offs = Long.parseLong(line, 10);
+                    int off = (int) offs;
+                    byte[] b = retrieveFileData(file264DataName, off, fileStart);
+                    boolean sendFlag = true;
+                    // --------------------------------------
+                    byte[] smallArray = new byte[off];
+                    System.arraycopy(b, 0, smallArray, 0, off);
+                    if(off < 100) {
+                        int count = parseAVCNALu(smallArray);
+                        if (count > 2) {
+                            sendFlag = false;
+                        }
+                    }
+                    if(sendFlag) {
+                        try {
+                            conn.send(smallArray);
+
+                            // error handling
+                        }catch (IllegalArgumentException iae) {
+                            Log.e("app264Streaming","conn.WriteMessage ERROR!!!");
+                            flag = false;
+                        } catch (NotYetConnectedException nyc) {
+                            Log.e("app264Streaming","conn.WriteMessage ERROR!!!");
+                            flag = false;
+                        }
+                    }
+                    // ---------------------------------------
+                    fileStart += offs;
+                }
+            } catch (IOException ioe) {}
+
+            if(!flag) {
+                timer.cancel();
+            }
+        }
+
     }
 
 }

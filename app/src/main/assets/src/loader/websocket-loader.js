@@ -50,13 +50,13 @@ class WebsocketLoader extends EventHandler {
  
   receiveSocketMessage( event ){
     var buffer = new Uint8Array(event.data);
-    console.log(buffer.length);
+    // console.log(buffer.length);
     var newBuffer;
     if(this.buf){
       newBuffer = new Uint8Array(this.buf.byteLength + buffer.byteLength);
       newBuffer.set(this.buf);
       newBuffer.set(buffer, this.buf.byteLength);
-      console.log(newBuffer.length);
+      // console.log(newBuffer.length);
     } else {
       newBuffer = new Uint8Array(buffer);
     }
@@ -68,7 +68,7 @@ class WebsocketLoader extends EventHandler {
     var lenView = new DataView(newBuffer.buffer);
     var len = lenView.getUint32(0);  
     while(len < newBuffer.byteLength -4){
-      console.log("frames, len:" + len);
+      // console.log("frames, len:" + len);
       var copy = newBuffer.subarray(4, len+4);
       this.wfs.trigger(Event.H264_DATA_PARSING, {data: copy});
       // var copy2 = new Uint8Array(0);
