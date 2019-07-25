@@ -34,7 +34,7 @@ public class ServerService extends Service {
         if(myWebServer == null) {
             try {
                 myWebServer = new MyServer(this);
-                myWebSocketServer = new SocketServer(new InetSocketAddress(ip, port));
+                myWebSocketServer = new SocketServer(new InetSocketAddress(ip, port), this);
 
                 myWebSocketServer.start();
 

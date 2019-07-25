@@ -62,6 +62,9 @@ class WebsocketLoader extends EventHandler {
     }
     // get len
     var offset = 0;
+    if(buffer.length == 0) {
+        return;
+    }
     var lenView = new DataView(newBuffer.buffer);
     var len = lenView.getUint32(0);  
     while(len < newBuffer.byteLength -4){
