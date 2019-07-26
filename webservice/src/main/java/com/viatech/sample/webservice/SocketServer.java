@@ -1,8 +1,12 @@
 package com.viatech.sample.webservice;
 
 import android.content.Context;
+import android.os.Debug;
 import android.os.Environment;
 import android.util.Log;
+
+import androidx.annotation.Nullable;
+
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
@@ -18,13 +22,20 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.NotYetConnectedException;
+import java.nio.file.WatchEvent;
+import java.sql.Connection;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.Vector;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 
 public class SocketServer extends WebSocketServer {
@@ -34,11 +45,12 @@ public class SocketServer extends WebSocketServer {
     private String requestFile = "";
     private ArrayList<File> allFileList;
 
-    Thread thread;
-    Lock mutex;
+    private Thread thread;
+    private Lock mutex;
 
-    private Queue<ByteBuffer> queue;
+    private Map<WebSocket, ByteBuffer> queue;
 
+    private boolean exit = false;
 
     public SocketServer(InetSocketAddress addr, Context context) {
         super(addr);
@@ -46,23 +58,53 @@ public class SocketServer extends WebSocketServer {
     }
 
     @Override
-    public void onOpen(WebSocket conn, ClientHandshake handshake) {
+    public void onOpen(final WebSocket conn, ClientHandshake handshake) {
         // send a message to the new client
         conn.send("Hi, client!");
         Log.e("SocketServer.onOpen", "new connection to " + conn.getRemoteSocketAddress());
 
-        queue = new LinkedList<>();
-    }
+        queue = new LinkedHashMap<>();
+        mutex = new ReentrantLock();
 
-    public void acceptFrame(ByteBuffer buf) {
-        mutex.lock();
-        queue.offer(buf);
-        mutex.unlock();
+        thread = new Thread(new Runnable() {
+
+            @Override
+            public void run() {
+                StreamingHandler streamingHandler = new StreamingHandler(getServer(), conn, context);
+                streamingHandler.app264Streaming();
+
+                while(!exit) {
+                    try {
+                        if (queue.isEmpty()) {
+                            thread.sleep(15);
+                        } else {
+                            mutex.lock();
+
+                            // pop first
+                            Map.Entry<WebSocket, ByteBuffer> entry = queue.entrySet().iterator().next();
+                            queue.remove(entry);
+
+                            mutex.unlock();
+
+                            streamingHandler.sendBuffer(entry);
+                        }
+                    } catch (InterruptedException ie) {
+                        Log.e("Interrupt", "Stop");
+                        return;
+                    }
+                }
+            }
+        });
     }
 
     @Override
     public void onClose(WebSocket conn, int code, String reason, boolean remote) {
+//        exit = true;
         thread.interrupt();
+        try {
+            thread.join();
+        } catch (Exception e) {}
+
         conn.close();
         Log.e("SocketServer.onClose", "closed " + conn.getRemoteSocketAddress() +
                 " with exit code " + code + " additional info: " + reason);
@@ -85,6 +127,51 @@ public class SocketServer extends WebSocketServer {
             String listMsg = allFileList.toString().
                     replace(Environment.getExternalStorageDirectory().getAbsolutePath(),"/sdcard");
             conn.send("option:" + listMsg);
+        }
+        else if(message.equals("Stop streaming")) {
+            Log.e("SocketServer.onMessage", message);
+            exit = true;
+            thread.interrupt();
+            try {
+                thread.join();
+            } catch (Exception e) {}
+        }
+        else if(message.equals("Start streaming")) {
+            Log.e("SocketServer.onMessage", message);
+            try {
+                thread.join();
+            } catch (Exception e) {}
+
+            thread = new Thread(new Runnable() {
+
+                @Override
+                public void run() {
+                    StreamingHandler streamingHandler = new StreamingHandler(getServer(), conn, context);
+                    streamingHandler.app264Streaming();
+
+                    while(true) {
+                        try {
+                            if (queue.isEmpty()) {
+                                thread.sleep(15);
+                            } else {
+                                mutex.lock();
+
+                                // pop first
+                                Map.Entry<WebSocket, ByteBuffer> entry = queue.entrySet().iterator().next();
+                                queue.remove(entry);
+
+                                mutex.unlock();
+
+                                streamingHandler.sendBuffer(entry);
+                            }
+                        } catch (InterruptedException ie) {
+                            Log.e("Interrupt", "Stop");
+                            return;
+                        }
+                    }
+                }
+            });
+            thread.start();
         }
         else if(Pattern.matches("file: .*", message)) {
             uploadFileName = message.substring(6);
@@ -120,31 +207,8 @@ public class SocketServer extends WebSocketServer {
                 JSONObject obj = new JSONObject(message);
                 if(obj.get("t").equals("open")) {
 
-                    thread = new Thread(new Runnable() {
-
-                        @Override
-                        public void run() {
-
-//                            while(true) {
-//                                if (queue.isEmpty()) {
-//                                    try {
-//                                        thread.sleep(15);
-//                                    } catch (Exception e) {}
-//                                } else {
-//                                    mutex.lock();
-//                                    ByteBuffer buf = queue.poll();
-//                                    mutex.unlock();
-
-
-                                    StreamingHandler streamingHandler = new StreamingHandler(conn, context);
-//                                    streamingHandler.sendBuffer(buf);
-                                     streamingHandler.app264Streaming();
-//                                }
-//                            }
-                        }
-                    });
-
                     thread.start();
+
                 }
             } catch (Throwable t) {}
         }
@@ -232,9 +296,24 @@ public class SocketServer extends WebSocketServer {
         Log.e("SocketServer.onStart", "Server started successfully.");
     }
 
+    public SocketServer getServer() {
+        return this;
+    }
+
+    public Lock getMutex() {
+        return mutex;
+    }
+
+    public Map<WebSocket, ByteBuffer> getQueue() {
+        return queue;
+    }
+
+
 }
 
 class StreamingHandler {
+
+    private SocketServer server;
     private WebSocket conn;
     private Context context;
     private BufferedReader sizeReader;
@@ -245,9 +324,18 @@ class StreamingHandler {
     private final String file264DataName = "car.h264";
     private final String file264SizeName = "car.txt";
 
-    public StreamingHandler(WebSocket conn, Context context) {
+
+    public StreamingHandler(SocketServer server, WebSocket conn, Context context) {
+        this.server = server;
         this.conn = conn;
         this.context = context;
+    }
+
+    public void pushFrame(ByteBuffer buf, WebSocket conn) {
+
+        server.getMutex().lock();
+        server.getQueue().put(conn, buf);
+        server.getMutex().unlock();
     }
 
     public int parseAVCNALu(byte[] array) {
@@ -308,10 +396,13 @@ class StreamingHandler {
         }
 
         MyTimerTask task = new MyTimerTask(conn);
-        timer.schedule(task, 30,30);
+        timer.schedule(task, 0,30);
     }
 
-    public void sendBuffer(ByteBuffer buf) {
+    public void sendBuffer(Map.Entry<WebSocket, ByteBuffer> bufData) {
+
+        WebSocket conn = bufData.getKey();
+        ByteBuffer buf = bufData.getValue();
 
         // ByteBuffer to byte array
         byte[] b = new byte[buf.remaining()];
@@ -327,7 +418,7 @@ class StreamingHandler {
         if(sendFlag) {
             try {
                 conn.send(b);
-            // error handling
+                // error handling
             }catch (IllegalArgumentException iae) {
                 Log.e("app264Streaming","conn.WriteMessage ERROR!!!");
             } catch (NotYetConnectedException nyc) {
@@ -337,10 +428,9 @@ class StreamingHandler {
     }
 
     class MyTimerTask extends TimerTask {
-
-        private WebSocket conn;
         private long fileStart = 0;
         private boolean flag = true;
+        private WebSocket conn;
 
         public MyTimerTask(WebSocket conn) {
             this.conn = conn;
@@ -354,30 +444,10 @@ class StreamingHandler {
                     long offs = Long.parseLong(line, 10);
                     int off = (int) offs;
                     byte[] b = retrieveFileData(file264DataName, off, fileStart);
-                    boolean sendFlag = true;
-                    // --------------------------------------
-                    byte[] smallArray = new byte[off];
-                    System.arraycopy(b, 0, smallArray, 0, off);
-                    if(off < 100) {
-                        int count = parseAVCNALu(smallArray);
-                        if (count > 2) {
-                            sendFlag = false;
-                        }
-                    }
-                    if(sendFlag) {
-                        try {
-                            conn.send(smallArray);
 
-                            // error handling
-                        }catch (IllegalArgumentException iae) {
-                            Log.e("app264Streaming","conn.WriteMessage ERROR!!!");
-                            flag = false;
-                        } catch (NotYetConnectedException nyc) {
-                            Log.e("app264Streaming","conn.WriteMessage ERROR!!!");
-                            flag = false;
-                        }
-                    }
-                    // ---------------------------------------
+//                    sendBuffer(b);
+                    pushFrame(ByteBuffer.wrap(b), conn);
+
                     fileStart += offs;
                 }
             } catch (IOException ioe) {}
@@ -386,7 +456,6 @@ class StreamingHandler {
                 timer.cancel();
             }
         }
-
     }
 
 }
