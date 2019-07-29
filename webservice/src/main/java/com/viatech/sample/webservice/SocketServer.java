@@ -5,6 +5,7 @@ import android.os.Debug;
 import android.os.Environment;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import org.java_websocket.WebSocket;
@@ -26,6 +27,7 @@ import java.nio.file.WatchEvent;
 import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.Map;
@@ -48,7 +50,7 @@ public class SocketServer extends WebSocketServer {
     private Thread thread;
     private Lock mutex;
 
-    private Map<WebSocket, ByteBuffer> queue;
+    private Queue<ByteBuffer> queue;
 
     private boolean exit = false;
 
@@ -60,51 +62,17 @@ public class SocketServer extends WebSocketServer {
     @Override
     public void onOpen(final WebSocket conn, ClientHandshake handshake) {
         // send a message to the new client
-        conn.send("Hi, client!");
+        // conn.send("Hi, client!");
         Log.e("SocketServer.onOpen", "new connection to " + conn.getRemoteSocketAddress());
 
-        queue = new LinkedHashMap<>();
+        queue = new LinkedList<ByteBuffer>();
         mutex = new ReentrantLock();
 
-        thread = new Thread(new Runnable() {
-
-            @Override
-            public void run() {
-                StreamingHandler streamingHandler = new StreamingHandler(getServer(), conn, context);
-                streamingHandler.app264Streaming();
-
-                while(!exit) {
-                    try {
-                        if (queue.isEmpty()) {
-                            thread.sleep(15);
-                        } else {
-                            mutex.lock();
-
-                            // pop first
-                            Map.Entry<WebSocket, ByteBuffer> entry = queue.entrySet().iterator().next();
-                            queue.remove(entry);
-
-                            mutex.unlock();
-
-                            streamingHandler.sendBuffer(entry);
-                        }
-                    } catch (InterruptedException ie) {
-                        Log.e("Interrupt", "Stop");
-                        return;
-                    }
-                }
-            }
-        });
     }
 
     @Override
     public void onClose(WebSocket conn, int code, String reason, boolean remote) {
-//        exit = true;
-        thread.interrupt();
-        try {
-            thread.join();
-        } catch (Exception e) {}
-
+        stopThread();
         conn.close();
         Log.e("SocketServer.onClose", "closed " + conn.getRemoteSocketAddress() +
                 " with exit code " + code + " additional info: " + reason);
@@ -130,48 +98,35 @@ public class SocketServer extends WebSocketServer {
         }
         else if(message.equals("Stop streaming")) {
             Log.e("SocketServer.onMessage", message);
-            exit = true;
-            thread.interrupt();
-            try {
-                thread.join();
-            } catch (Exception e) {}
+
+            stopThread();
+
+            mutex.lock();
+            queue.clear();
+            mutex.unlock();
+
+            queue = null;
+            queue = new LinkedList<>();
         }
         else if(message.equals("Start streaming")) {
             Log.e("SocketServer.onMessage", message);
-            try {
-                thread.join();
-            } catch (Exception e) {}
 
-            thread = new Thread(new Runnable() {
+            if(!thread.isInterrupted()) {
 
-                @Override
-                public void run() {
-                    StreamingHandler streamingHandler = new StreamingHandler(getServer(), conn, context);
-                    streamingHandler.app264Streaming();
+                Log.e("SocketServer.onMessage", message);
+                stopThread();
+            }
 
-                    while(true) {
-                        try {
-                            if (queue.isEmpty()) {
-                                thread.sleep(15);
-                            } else {
-                                mutex.lock();
 
-                                // pop first
-                                Map.Entry<WebSocket, ByteBuffer> entry = queue.entrySet().iterator().next();
-                                queue.remove(entry);
+            Log.e("SocketServer.onMessage", message);
+            mutex.lock();
+            queue.clear();
+            mutex.unlock();
 
-                                mutex.unlock();
+            queue = null;
+            queue = new LinkedList<>();
 
-                                streamingHandler.sendBuffer(entry);
-                            }
-                        } catch (InterruptedException ie) {
-                            Log.e("Interrupt", "Stop");
-                            return;
-                        }
-                    }
-                }
-            });
-            thread.start();
+            Log.e("SocketServer.onMessage", message);
         }
         else if(Pattern.matches("file: .*", message)) {
             uploadFileName = message.substring(6);
@@ -207,12 +162,54 @@ public class SocketServer extends WebSocketServer {
                 JSONObject obj = new JSONObject(message);
                 if(obj.get("t").equals("open")) {
 
-                    thread.start();
-
+                    startThread(conn);
                 }
             } catch (Throwable t) {}
         }
 
+    }
+
+
+    public void startThread(final WebSocket conn) {
+
+        thread = null;
+        thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+
+                mutex.lock();
+                queue.clear();
+                mutex.unlock();
+
+                StreamingHandler streamingHandler = new StreamingHandler(getServer(), conn, context);
+                streamingHandler.app264Streaming();
+
+                while(true) {
+                    try {
+                        if (queue.isEmpty()) {
+                            thread.sleep(15);
+                        } else {
+                            mutex.lock();
+                            ByteBuffer entry = queue.poll();
+                            mutex.unlock();
+                            if (entry != null) {
+                                streamingHandler.sendBuffer(entry);
+                            }
+                        }
+                    } catch (InterruptedException ie) {
+                        return;
+                    }
+                }
+            }
+        });
+        thread.start();
+    }
+
+    public void stopThread() {
+        thread.interrupt();
+        try {
+            thread.join();
+        } catch (Exception e) {}
     }
 
     public void removeDirFromList() {
@@ -245,12 +242,12 @@ public class SocketServer extends WebSocketServer {
                 }
                 else {
                     if(curDirfileList[i].getName().endsWith(".png") ||
-                    curDirfileList[i].getName().endsWith(".jpg") ||
-                    curDirfileList[i].getName().endsWith(".xml") ||
-                    curDirfileList[i].getName().endsWith(".txt") ||
-                    curDirfileList[i].getName().endsWith(".mp4") ||
-                    curDirfileList[i].getName().endsWith(".webm") ||
-                    curDirfileList[i].getName().endsWith(".ogg")) {
+                            curDirfileList[i].getName().endsWith(".jpg") ||
+                            curDirfileList[i].getName().endsWith(".xml") ||
+                            curDirfileList[i].getName().endsWith(".txt") ||
+                            curDirfileList[i].getName().endsWith(".mp4") ||
+                            curDirfileList[i].getName().endsWith(".webm") ||
+                            curDirfileList[i].getName().endsWith(".ogg")) {
 
                         allFileList.add(curDirfileList[i]);
                     }
@@ -304,10 +301,9 @@ public class SocketServer extends WebSocketServer {
         return mutex;
     }
 
-    public Map<WebSocket, ByteBuffer> getQueue() {
+    public Queue<ByteBuffer> getQueue() {
         return queue;
     }
-
 
 }
 
@@ -331,10 +327,11 @@ class StreamingHandler {
         this.context = context;
     }
 
-    public void pushFrame(ByteBuffer buf, WebSocket conn) {
+    public void pushFrame(ByteBuffer buf) {
 
         server.getMutex().lock();
-        server.getQueue().put(conn, buf);
+        server.getQueue().offer(buf);
+//        server.getQueue().put(conn, buf);
         server.getMutex().unlock();
     }
 
@@ -399,10 +396,10 @@ class StreamingHandler {
         timer.schedule(task, 0,30);
     }
 
-    public void sendBuffer(Map.Entry<WebSocket, ByteBuffer> bufData) {
+    public void sendBuffer(ByteBuffer buf) {
 
-        WebSocket conn = bufData.getKey();
-        ByteBuffer buf = bufData.getValue();
+//        WebSocket conn = bufData.getKey();
+//        ByteBuffer buf = bufData.getValue();
 
         // ByteBuffer to byte array
         byte[] b = new byte[buf.remaining()];
@@ -417,7 +414,9 @@ class StreamingHandler {
         }
         if(sendFlag) {
             try {
-                conn.send(b);
+                if(b.length != 0 || !conn.isClosed()) {
+                    conn.send(b);
+                }
                 // error handling
             }catch (IllegalArgumentException iae) {
                 Log.e("app264Streaming","conn.WriteMessage ERROR!!!");
@@ -445,8 +444,9 @@ class StreamingHandler {
                     int off = (int) offs;
                     byte[] b = retrieveFileData(file264DataName, off, fileStart);
 
-//                    sendBuffer(b);
-                    pushFrame(ByteBuffer.wrap(b), conn);
+                    if(b.length != 0) {
+                        pushFrame(ByteBuffer.wrap(b));
+                    }
 
                     fileStart += offs;
                 }

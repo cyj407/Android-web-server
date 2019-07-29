@@ -23,24 +23,54 @@ MyBlobBuilder.prototype.getBlob = function() {
 var myBlobBuilder = undefined;
 
 function pauseStreaming() {
+
+    if(ws === null) {
+        WebSocketTest(ip, port);
+    }
+
     ws.send("Stop streaming");
+
+    wfs.destroy();
 }
 
-function startStreaming() {
+function startStreaming(ip, port) {
+
+    if(ws === null) {
+        WebSocketTest(ip, port);
+    }
+
     ws.send("Start streaming");
+
+    wfs.destroy();
+
+    if (Wfs.isSupported()) {
+        var video1 = document.getElementById("video1");
+        video1.src = null;
+        wfs = new Wfs();
+        wfs.attachMedia(video1, ip, port);
+    }
 }
 
-function WebSocketTest() {
+function getFileList(ip, port) {
+    if(ws === null) {
+        WebSocketTest(ip, port);
+    }
+
+    ws.send("hi, server");
+
+}
+
+function WebSocketTest(ip, port) {
     if ("WebSocket" in window) {
 
         if (ws === null || serverClosed === true) {
             serverClosed = false;
 
-            ws = new WebSocket('ws://192.168.137.216:9000');
+            ws = new WebSocket('ws://' + ip + ':' + port);
             ws.binaryData = "blob";
 
             ws.onopen = function() {
-                ws.send("hi, server");
+                //ws.send("hi, server");
             };
 
             ws.onmessage = function(event) {
@@ -99,12 +129,14 @@ function WebSocketTest() {
                 alert("connection closed.");
                 serverClosed = true;
             };
+
         } else {
-            alert("connection exists.");
+            //alert("connection exists.");
         }
     } else {
         alert("Your browser is not supported.");
     }
+    return;
 }
 
 function downloadAndShow(rec) {

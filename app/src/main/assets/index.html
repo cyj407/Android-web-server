@@ -1,5 +1,19 @@
 <!DOCTYPE HTML>
+<script>
+    var ip = '192.168.137.184';
+    var port = '9000';
+
+    window.onload = function() {
+
+        if (Wfs.isSupported()) {
+            var video1 = document.getElementById("video1");
+            wfs = new Wfs();
+            wfs.attachMedia(video1, ip, port);
+        }
+    };
+</script>
 <script type="text/javascript" src="index.js"></script>
+<script type="text/javascript" src="dist/wfs.js"></script>
 <html>
 <head>
     <title>Hello World</title>
@@ -19,7 +33,7 @@
 <body>
     <h1>Hello World</h1>
     <h2>h.264 To fmp4</h2>
-    <button id="btn_play" onclick="startStreaming()">Play</button>
+    <button id="btn_play" onclick="startStreaming(ip, port)">Play</button>
     <button id="btn_pause" onclick="pauseStreaming()">Pause</button>
 
     <!--<canvas id="myCanvas" width="360" height="360" style="border:#000 1px solid;"></canvas>-->
@@ -29,22 +43,6 @@
         <div class="ratio"></div>
     </div>
 
-    <script>
-        var ip = '192.168.137.216';
-        var port = '9000';
-
-        window.onload = function() {
-            if (Wfs.isSupported()) {
-                var video1 = document.getElementById("video1");
-                wfs = new Wfs();
-                wfs.attachMedia(video1, ip, port);
-            }
-        };
-    </script>
-
-    <div id="sse">
-        <a href="javascript:WebSocketTest()">Execute WebSocket</a>
-    </div>
     <video autoplay id="my-player" class="video-js" controls preload="auto" poster="Stonehenge.jpg" width="800" height="640" data-setup='{}'>
         <p class="vjs-no-js">To view this video please enable JavaScript, and consider upgrading to a web browser that
             <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
@@ -55,7 +53,12 @@
     <button ID="btn_send" onclick="sendFile()">Send File</button>
     <br>
     <br>
-    <br>Input File path:
+    <br>
+
+    <div id="sse">
+        <a href="javascript:getFileList(ip, port)">Update File list</a>
+    </div>
+    Input File path:
     <input id="filePath" type="text" list="optionList">
     <datalist id="optionList">
     </datalist>
@@ -66,6 +69,5 @@
     <a id="download" style="display: none">Download</a>
 </body>
 
-<script type="text/javascript" src="dist/wfs.js"></script>
 
 </html>
